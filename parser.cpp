@@ -51,7 +51,7 @@ bool ParseError(int line, string msg) {
 // Prog ::= PROGRAM IDENT CompStmt
 bool Prog(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
-	if (token != PROGRAM) return ParseError(line, "Missing Program keyword");
+	if (token != PROGRAM) return ParseError(line, "Missing PROGRAM keyword");
 
 	token = Parser::GetNextToken(in, line);
 	if (token != IDENT) return ParseError(line, "Missing Program name");
@@ -104,13 +104,16 @@ bool Stmt(istream &in, int &line) {
 bool DeclStmt(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token != INT && token != FLOAT && token != BOOL && token != CHAR && token != STRING)
-		return ParseError(line, "Invalid type");
+		return ParseError(line, "Invalid declaration type");
 
 	bool varlist = VarList(in, line);
 	if (!varlist) return ParseError(line, "Invalid variable list");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) return ParseError(line, "Missing semicolon");
+	if (token != SEMICOL) {
+		line--;
+		return ParseError(line, "Missing ; after declaration statement");
+	}
 
 	return true;
 }
@@ -123,7 +126,7 @@ bool VarList(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == ASSOP) {
 		bool expr = Expr(in, line);
-		if (!expr) return ParseError(line, "Invalid expression");
+		if (!expr) return false;
 	} else {
 		Parser::PushBackToken(token);
 	}
@@ -131,7 +134,7 @@ bool VarList(istream &in, int &line) {
 	token = Parser::GetNextToken(in, line);
 	if (token == COMMA) {
 		bool varlist = VarList(in, line);
-		if (!varlist) return ParseError(line, "Invalid expression");
+		if (!varlist) return false;
 	} else {
 		Parser::PushBackToken(token);  // Puts the token back if not used
 	}
@@ -158,10 +161,13 @@ bool ControlStmt(istream &in, int &line) {
 
 	// Defaults to an assignment statement
 	bool assgnstmt = AssignStmt(in, line);
-	if (!assgnstmt) return false;
+	if (!assgnstmt) return ParseError(line, "Invalid Assignment Statement");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) return ParseError(line, "Missing ; in assignment statement");
+	if (token != SEMICOL) {
+		line--;
+		return ParseError(line, "Missing ; after assignment statement");
+	}
 
 	return true;
 }
@@ -169,19 +175,22 @@ bool ControlStmt(istream &in, int &line) {
 // PrintStmt ::= PRINT (ExprList) ;
 bool PrintStmt(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
-	if (token != PRINT) return ParseError(line, "Missing PRINT Statement");	 // This should never be hit
+	if (token != PRINT) return ParseError(line, "Missing PRINT keyword");  // This should never be hit
 
 	token = Parser::GetNextToken(in, line);
-	if (token != LPAREN) return ParseError(line, "Missing Left Parenthesis");
+	if (token != LPAREN) return ParseError(line, "Missing (");
 
 	bool ex = ExprList(in, line);
-	if (!ex) return ParseError(line, "Missing expression list after Print");
+	if (!ex) return ParseError(line, "Missing expression list for PRINT");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != RPAREN) return ParseError(line, "Missing Right Parenthesis");
+	if (token != RPAREN) return ParseError(line, "Missing )");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) return ParseError(line, "Missing SEMICOL after print statement");
+	if (token != SEMICOL) {
+		line--;
+		return ParseError(line, "Missing ; after print statement");
+	}
 
 	return true;
 }
@@ -189,14 +198,13 @@ bool PrintStmt(istream &in, int &line) {
 // CompStmt ::= '{' StmtList '}'
 bool CompStmt(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
-	/*if (token != LBRACE) return ParseError(line, "Missing Left Brace");*/
 	if (token != LBRACE) return false;
 
 	bool stmtlist = StmtList(in, line);
 	if (!stmtlist) return ParseError(line, "Incorrect statement list");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != RBRACE) return ParseError(line, "Missing Right Brace");
+	if (token != RBRACE) return ParseError(line, "Missing }");
 
 	return true;
 }
@@ -212,7 +220,7 @@ bool IfStmt(istream &in, int &line) {
 	if (!expr) return ParseError(line, "Invalid expression in if statement");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != LPAREN) return ParseError(line, "Missing ( in if statement");
+	if (token != RPAREN) return ParseError(line, "Missing ) in if statement");
 
 	bool stmt = Stmt(in, line);
 	if (!stmt) return ParseError(line, "Invalid if-clause in if statement");
@@ -221,7 +229,7 @@ bool IfStmt(istream &in, int &line) {
 	token = Parser::GetNextToken(in, line);
 	if (token == ELSE) {
 		stmt = Stmt(in, line);
-		if (!stmt) return ParseError(line, "Invalid if-clause in if statement");
+		if (!stmt) return ParseError(line, "Invalid else-clause in if statement");
 	} else {
 		Parser::PushBackToken(token);
 	}
@@ -279,7 +287,7 @@ bool ExprList(istream &in, int &line) {
 // Expr ::= LogANDExpr { || LogANDExpr }
 bool Expr(istream &in, int &line) {
 	bool logAndExpr = LogANDExpr(in, line);
-	if (!logAndExpr) return ParseError(line, "Invalid expression");
+	if (!logAndExpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == OR) {
@@ -295,7 +303,7 @@ bool Expr(istream &in, int &line) {
 // LogANDExpr ::= EqualExpr { && EqualExpr }
 bool LogANDExpr(istream &in, int &line) {
 	bool equalExpr = EqualExpr(in, line);
-	if (!equalExpr) return ParseError(line, "Invalid expression");
+	if (!equalExpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == AND) {
@@ -311,7 +319,7 @@ bool LogANDExpr(istream &in, int &line) {
 // EqualExpr ::= RelExpr [ ( == | !== ) RealExpr ]
 bool EqualExpr(istream &in, int &line) {
 	bool relexpr = RelExpr(in, line);
-	if (!relexpr) return ParseError(line, "Invalid expression");
+	if (!relexpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == EQ || token == NEQ) {
@@ -327,7 +335,7 @@ bool EqualExpr(istream &in, int &line) {
 // RelExpr ::= AddExpr [ ( < | > ) AddExpr ]
 bool RelExpr(istream &in, int &line) {
 	bool addexpr = AddExpr(in, line);
-	if (!addexpr) return ParseError(line, "Invalid expression");
+	if (!addexpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == LTHAN || token == GTHAN) {
@@ -343,7 +351,7 @@ bool RelExpr(istream &in, int &line) {
 // AddExpr ::= MultExpr { ( + | - ) MultExpr }
 bool AddExpr(istream &in, int &line) {
 	bool multexpr = MultExpr(in, line);
-	if (!multexpr) return ParseError(line, "Invalid expression");
+	if (!multexpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == PLUS || token == MINUS) {
@@ -359,7 +367,7 @@ bool AddExpr(istream &in, int &line) {
 // MultExpr ::= UnaryExpr { ( * | / | % ) UnaryExpr }
 bool MultExpr(istream &in, int &line) {
 	bool unaryexpr = UnaryExpr(in, line);
-	if (!unaryexpr) return ParseError(line, "Invalid expression");
+	if (!unaryexpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == MULT || token == DIV || token == REM) {
@@ -396,10 +404,10 @@ bool PrimaryExpr(istream &in, int &line, int sign) {
 
 	if (token == LPAREN) {
 		bool expr = Expr(in, line);
-		if (!expr) ParseError(line, "Invalid expression");
+		if (!expr) return false;
 
 		token = Parser::GetNextToken(in, line);
-		if (token != RPAREN) return ParseError(line, "Missing right parenthsis");
+		if (token != RPAREN) return ParseError(line, "Missing ) after expression");
 
 		return true;
 	}
