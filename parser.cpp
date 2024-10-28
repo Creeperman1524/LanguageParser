@@ -12,6 +12,13 @@ map<string, bool> defVar;  // A map of variables, where true means it is assigne
 // A variable to keep track of whether we are assigning or not
 bool assigning = false;
 
+// A variable to keep track of the current variable being parsed
+// (Used for the "initialization" print statements)
+// FIX: there is prob a better way to do this
+string currVar = "";
+
+int nestingLevel = 0;
+
 /*map<string, Token> SymTable;*/
 
 namespace Parser {
@@ -28,7 +35,6 @@ static LexItem GetNextToken(istream &in, int &line) {
 	// TODO: maybe deal with errors in here?
 	// (I don't think they're checked for)
 	LexItem token = getNextToken(in, line);
-	// FIX: remove later
 	return token;
 }
 
@@ -62,6 +68,10 @@ bool Prog(istream &in, int &line) {
 
 	bool comp = CompStmt(in, line);
 	if (!comp) return ParseError(line, "Invalid Program");
+
+	token = Parser::GetNextToken(in, line);
+	if (token != DONE) return ParseError(line, "Something went horribly wrong");
+	cout << "(DONE)" << endl;
 
 	return true;
 }
@@ -137,6 +147,9 @@ bool VarList(istream &in, int &line) {
 	if (token == ASSOP) {
 		bool expr = Expr(in, line);
 		if (!expr) return false;
+		cout << "Initialization of the variable " << currVar << " in the declaration statement at line " << line
+			 << endl;
+
 	} else {
 		Parser::PushBackToken(token);
 	}
@@ -233,13 +246,19 @@ bool IfStmt(istream &in, int &line) {
 	token = Parser::GetNextToken(in, line);
 	if (token != RPAREN) return ParseError(line, "Missing ) in if statement");
 
+	nestingLevel++;
+	cout << "in IfStmt then-clause at nesting level: " << nestingLevel << endl;
 	bool stmt = Stmt(in, line);
 	if (!stmt) return ParseError(line, "Invalid if-clause in if statement");
+	nestingLevel--;
 
 	// Else
 	token = Parser::GetNextToken(in, line);
 	if (token == ELSE) {
+		nestingLevel++;
+		cout << "in IfStmt else-clause at nesting level: " << nestingLevel << endl;
 		stmt = Stmt(in, line);
+		nestingLevel--;
 		if (!stmt) return ParseError(line, "Invalid else-clause in if statement");
 	} else {
 		Parser::PushBackToken(token);
@@ -272,8 +291,8 @@ bool Var(istream &in, int &line) {
 
 	// Handles the creation of variables
 	// TODO: maybe there's a better way to do this
-	string lex = token.GetLexeme();
-	if (defVar.find(lex) != defVar.end()) {
+	currVar = token.GetLexeme();
+	if (defVar.find(currVar) != defVar.end()) {
 		// The variable exists
 		if (!assigning) {
 			// Defining an already existing variable
@@ -286,7 +305,7 @@ bool Var(istream &in, int &line) {
 			return ParseError(line, "Undefined variable");
 		} else {
 			// Defining a nonexisting varialble
-			defVar[lex] = true;
+			defVar[currVar] = true;
 		}
 	}
 
