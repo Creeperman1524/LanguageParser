@@ -43,6 +43,8 @@ bool ParseError(int line, string msg) {
 	return false;
 }
 
+// GRAMMAR RULES \\
+
 // Prog ::= PROGRAM IDENT CompStmt
 bool Prog(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
@@ -79,10 +81,13 @@ bool Stmt(istream &in, int &line) {
 	return true;
 }
 
+// DeclStmt ::= ( INT | FLOAT | BOOL | CHAR | STRING ) VarList ;
 /*bool DeclStmt(istream &in, int &line) {}*/
 
+// VarList ::= Var [= Expr] { ,Var [= Expr]}
 /*bool VarList(istream &in, int &line) {}*/
 
+// ControlStmt ::= AssgnStmt ; | IfStmt | PrintStmt ;
 /*bool ControlStmt(istream &in, int &line) {}*/
 
 // PrintStmt ::= PRINT (ExprList)
@@ -114,11 +119,13 @@ bool CompStmt(istream &in, int &line) {
 
 	return true;
 }
-
+// IfStmt ::= IF (Expr) Stmt [ ELSE Stmt ]
 /*bool IfStmt(istream &in, int &line) {}*/
 
+// AssignStmt ::= Var ( = | += | -= | *= | /= | % = ) Expr
 /*bool AssignStmt(istream &in, int &line) {}*/
 
+// Var ::= IDENT
 /*bool Var(istream &in, int &line) {}*/
 
 // ExprList ::= Expr { , Expr }
@@ -145,18 +152,26 @@ bool ExprList(istream &in, int &line) {
 	return true;
 }
 
+// Expr ::= LogANDExpr { || LogANDExpr }
 /*bool Expr(istream &in, int &line) {}*/
 
+// LogANDExpr ::= EqualExpr { && EqualExpr}
 /*bool LogANDExpr(istream &in, int &line) {}*/
 
+// EqualExpr ::= RelExpr [ ( == | !== ) RealExpr ]
 /*bool EqualExpr(istream &in, int &line) {}*/
 
+// RelExpr ::= AddExpr [ ( < | > ) AddExpr ]
 /*bool RelExpr(istream &in, int &line) {}*/
 
+// AddExpr ::= MultExpr { ( + | - ) MultExpr }
 /*bool AddExpr(istream &in, int &line) {}*/
 
+// MultExpr ::= UnaryExpr { ( * | / | % ) UnaryExpr }
 /*bool MultExpr(istream &in, int &line) {}*/
 
+// UnaryExpr ::= [ ( - | + | ! ) ] PrimaryExpr
 /*bool UnaryExpr(istream &in, int &line) {}*/
 
+// PrimaryExpr ::= IDENT | ICONST | RCONST | SCONST | BCONST | CCONST | ( Expr )
 /*bool PrimaryExpr(istream &in, int &line, int sign) {}*/
