@@ -6,8 +6,13 @@
 #include "parser.h"
 #include "lex.h"
 
-map<string, bool> defVar;
-map<string, Token> SymTable;
+map<string, bool> defVar;  // A map of variables, where true means it is assigned
+
+// There is probably a better way to do this
+// A variable to keep track of whether we are assigning or not
+bool assigning = false;
+
+/*map<string, Token> SymTable;*/
 
 namespace Parser {
 
@@ -24,7 +29,6 @@ static LexItem GetNextToken(istream &in, int &line) {
 	// (I don't think they're checked for)
 	LexItem token = getNextToken(in, line);
 	// FIX: remove later
-	cout << token;
 	return token;
 }
 
@@ -95,6 +99,11 @@ bool Stmt(istream &in, int &line) {
 		Parser::PushBackToken(token);
 	}
 
+	// FIX: hacky way for testprog16
+	token = Parser::GetNextToken(in, line);
+	if (token == ELSE) return false;
+	Parser::PushBackToken(token);
+
 	// Defaults to a control statement
 	bool controlstmt = ControlStmt(in, line);
 	return controlstmt ? true : ParseError(line, "Invalid control statement");
@@ -120,6 +129,7 @@ bool DeclStmt(istream &in, int &line) {
 
 // VarList ::= Var [= Expr] { ,Var [= Expr] }
 bool VarList(istream &in, int &line) {
+	assigning = false;
 	bool var = Var(in, line);
 	if (!var) return ParseError(line, "Invalid variable");
 
@@ -149,7 +159,8 @@ bool ControlStmt(istream &in, int &line) {
 	// Detects an if statement
 	if (token == IF) {
 		Parser::PushBackToken(token);
-		return IfStmt(in, line);
+		bool ifstmt = IfStmt(in, line);
+		return ifstmt ? true : ParseError(line, "Invalid IF statement");
 	} else if (token == PRINT) {
 		// Detects a print statement
 		Parser::PushBackToken(token);
@@ -211,7 +222,7 @@ bool CompStmt(istream &in, int &line) {
 // IfStmt ::= IF (Expr) Stmt [ ELSE Stmt ]
 bool IfStmt(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
-	if (token != PRINT) return ParseError(line, "Missing IF in if statement");
+	if (token != IF) return ParseError(line, "Missing IF keyword");	 // This should never be hit
 
 	token = Parser::GetNextToken(in, line);
 	if (token != LPAREN) return ParseError(line, "Missing ( in if statement");
@@ -239,13 +250,14 @@ bool IfStmt(istream &in, int &line) {
 
 // AssignStmt ::= Var ( = | += | -= | *= | /= | %= ) Expr
 bool AssignStmt(istream &in, int &line) {
+	assigning = true;
 	bool var = Var(in, line);
 	if (!var) return ParseError(line, "Invalid LHS variable in assignment");
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token != ASSOP && token != ADDASSOP && token != SUBASSOP && token != MULASSOP && token != DIVASSOP &&
 		token != REMASSOP)
-		return ParseError(line, "Invalid assignment type");
+		return ParseError(line, "Missing assignment operator");
 
 	bool expr = Expr(in, line);
 	if (!expr) return ParseError(line, "Invalid expression in assignment");
@@ -256,7 +268,29 @@ bool AssignStmt(istream &in, int &line) {
 // Var ::= IDENT
 bool Var(istream &in, int &line) {
 	LexItem token = Parser::GetNextToken(in, line);
-	return token == IDENT;
+	if (token != IDENT) return false;
+
+	// Handles the creation of variables
+	// TODO: maybe there's a better way to do this
+	string lex = token.GetLexeme();
+	if (defVar.find(lex) != defVar.end()) {
+		// The variable exists
+		if (!assigning) {
+			// Defining an already existing variable
+			return ParseError(line, "Variable redefinition");
+		}
+	} else {
+		// The variable does not exist
+		if (assigning) {
+			// Assining to a nonexisting variable
+			return ParseError(line, "Undefined variable");
+		} else {
+			// Defining a nonexisting varialble
+			defVar[lex] = true;
+		}
+	}
+
+	return true;
 }
 
 // ExprList ::= Expr { , Expr }
@@ -316,15 +350,20 @@ bool LogANDExpr(istream &in, int &line) {
 	return true;
 }
 
-// EqualExpr ::= RelExpr [ ( == | !== ) RealExpr ]
+// EqualExpr ::= RelExpr [ ( == | != ) RelExpr ]
 bool EqualExpr(istream &in, int &line) {
 	bool relexpr = RelExpr(in, line);
 	if (!relexpr) return false;
 
 	LexItem token = Parser::GetNextToken(in, line);
 	if (token == EQ || token == NEQ) {
-		relexpr = EqualExpr(in, line);
+		relexpr = RelExpr(in, line);
 		if (!relexpr) return ParseError(line, "Invalid equality expression");
+
+		token = Parser::GetNextToken(in, line);
+		if (token == EQ || token == NEQ) { return ParseError(line, "Cannot have chained equality expression"); }
+
+		Parser::PushBackToken(token);
 	} else {
 		Parser::PushBackToken(token);
 	}
@@ -341,6 +380,11 @@ bool RelExpr(istream &in, int &line) {
 	if (token == LTHAN || token == GTHAN) {
 		addexpr = AddExpr(in, line);
 		if (!addexpr) return ParseError(line, "Invalid relative expression");
+
+		token = Parser::GetNextToken(in, line);
+		if (token == LTHAN || token == GTHAN) { return ParseError(line, "Cannot have chained relative expression"); }
+
+		Parser::PushBackToken(token);
 	} else {
 		Parser::PushBackToken(token);
 	}
@@ -404,7 +448,7 @@ bool PrimaryExpr(istream &in, int &line, int sign) {
 
 	if (token == LPAREN) {
 		bool expr = Expr(in, line);
-		if (!expr) return false;
+		if (!expr) return ParseError(line, "Missing expression after (");
 
 		token = Parser::GetNextToken(in, line);
 		if (token != RPAREN) return ParseError(line, "Missing ) after expression");
@@ -412,5 +456,5 @@ bool PrimaryExpr(istream &in, int &line, int sign) {
 		return true;
 	}
 
-	return ParseError(line, "Invalid primary expression");
+	return false;
 }
