@@ -4,6 +4,7 @@
 // =======================================================
 
 #include "parser.h"
+#include "lex.h"
 
 map<string, bool> defVar;
 map<string, Token> SymTable;
@@ -19,6 +20,8 @@ static LexItem GetNextToken(istream &in, int &line) {
 		pushed_back = false;
 		return pushed_token;
 	}
+	// TODO: maybe deal with errors in here?
+	// (I don't think they're checked for)
 	return getNextToken(in, line);
 }
 
@@ -40,11 +43,41 @@ bool ParseError(int line, string msg) {
 	return false;
 }
 
-/*bool Prog(istream &in, int &line) {}*/
+// Prog ::= PROGRAM IDENT CompStmt
+bool Prog(istream &in, int &line) {
+	LexItem token = Parser::GetNextToken(in, line);
+	if (token != PROGRAM) return ParseError(line, "Missing Program keyword");
 
-/*bool StmtList(istream &in, int &line) {}*/
+	token = Parser::GetNextToken(in, line);
+	if (token != IDENT) return ParseError(line, "Missing Program name");
 
-/*bool Stmt(istream &in, int &line) {}*/
+	bool comp = CompStmt(in, line);
+	if (!comp) return ParseError(line, "Cannot have an empty program");
+
+	return true;
+}
+
+// StmtList ::= Stmt { Stmt }
+bool StmtList(istream &in, int &line) {
+	bool stmt = Stmt(in, line);
+	if (!stmt) return ParseError(line, "Invalid statement");
+
+	// Checks for a right brace, meaning we're at the end of the program
+	// (This only works because StmtList is only called by CompStmt, which ends with a })
+	LexItem token = Parser::GetNextToken(in, line);
+	if (token == RBRACE) {
+		Parser::PushBackToken(token);
+		return true;
+	}
+
+	return StmtList(in, line);
+}
+
+// Stmt ::= DeclStmt | ControlStmt | CompStmt
+bool Stmt(istream &in, int &line) {
+	// TODO: fix
+	return true;
+}
 
 /*bool DeclStmt(istream &in, int &line) {}*/
 
@@ -52,22 +85,35 @@ bool ParseError(int line, string msg) {
 
 /*bool ControlStmt(istream &in, int &line) {}*/
 
+// PrintStmt ::= PRINT (ExprList)
 bool PrintStmt(istream &in, int &line) {
-	LexItem t = Parser::GetNextToken(in, line);
-	if (t != LPAREN) return ParseError(line, "Missing Left Parenthesis");
+	LexItem token = Parser::GetNextToken(in, line);
+	if (token != LPAREN) return ParseError(line, "Missing Left Parenthesis");
 
 	bool ex = ExprList(in, line);
 
 	if (!ex) return ParseError(line, "Missing expression list after Print");
 
-	t = Parser::GetNextToken(in, line);
-	if (t != RPAREN) return ParseError(line, "Missing Right Parenthesis");
-
-	// Evaluate: print out the list of expressions values
+	token = Parser::GetNextToken(in, line);
+	if (token != RPAREN) return ParseError(line, "Missing Right Parenthesis");
 
 	return true;
 }
-/*bool CompStmt(istream &in, int &line) {}*/
+
+// CompStmt ::= '{' StmtList '}'
+bool CompStmt(istream &in, int &line) {
+	LexItem token = Parser::GetNextToken(in, line);
+	if (token != LBRACE) return ParseError(line, "Missing Left Brace");
+
+	bool stmtlist = StmtList(in, line);
+
+	if (!stmtlist) return ParseError(line, "Missing statements in program");
+
+	token = Parser::GetNextToken(in, line);
+	if (token != RBRACE) return ParseError(line, "Missing Right Brace");
+
+	return true;
+}
 
 /*bool IfStmt(istream &in, int &line) {}*/
 
@@ -75,23 +121,25 @@ bool PrintStmt(istream &in, int &line) {
 
 /*bool Var(istream &in, int &line) {}*/
 
+// ExprList ::= Expr { , Expr }
 bool ExprList(istream &in, int &line) {
 	bool status = false;
 	/*status = Expr(in, line);*/
 
 	if (!status) return ParseError(line, "Missing Expression");
 
-	LexItem tok = Parser::GetNextToken(in, line);
+	LexItem token = Parser::GetNextToken(in, line);
 
-	if (tok == COMMA) {
+	if (token == COMMA) {
 		status = ExprList(in, line);
 
-	} else if (tok.GetToken() == ERR) {
-		cout << "(" << tok.GetLexeme() << ")" << endl;
+	} else if (token == ERR) {
+		// FIX: this can probably be removed
+		cout << "(" << token.GetLexeme() << ")" << endl;
 		return ParseError(line, "Unrecognized Input Pattern");
 
 	} else {
-		Parser::PushBackToken(tok);
+		Parser::PushBackToken(token);
 		return true;
 	}
 	return true;
