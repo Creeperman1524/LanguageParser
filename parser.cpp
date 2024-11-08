@@ -129,10 +129,7 @@ bool DeclStmt(istream &in, int &line) {
 	if (!varlist) return ParseError(line, "Invalid variable list");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) {
-		line--;
-		return ParseError(line, "Missing ; after declaration statement");
-	}
+	if (token != SEMICOL) return ParseError(line, "Missing ; after declaration statement");
 
 	return true;
 }
@@ -188,10 +185,7 @@ bool ControlStmt(istream &in, int &line) {
 	if (!assgnstmt) return ParseError(line, "Invalid Assignment Statement");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) {
-		line--;
-		return ParseError(line, "Missing ; after assignment statement");
-	}
+	if (token != SEMICOL) return ParseError(line, "Missing ; after assignment statement");
 
 	return true;
 }
@@ -211,10 +205,7 @@ bool PrintStmt(istream &in, int &line) {
 	if (token != RPAREN) return ParseError(line, "Missing )");
 
 	token = Parser::GetNextToken(in, line);
-	if (token != SEMICOL) {
-		line--;
-		return ParseError(line, "Missing ; after print statement");
-	}
+	if (token != SEMICOL) return ParseError(line, "Missing ; after print statement");
 
 	return true;
 }
